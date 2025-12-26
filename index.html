@@ -3,36 +3,215 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LLM 使用调研 - 实时投票</title>
+    <title>LLM 使用调研 - 炫酷投票</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    
     <style>
+        /* 渐变背景动画 */
+        @keyframes gradient-shift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        
+        body {
+            background: linear-gradient(-45deg, #1e1b4b, #581c87, #1e3a8a, #0f172a);
+            background-size: 400% 400%;
+            animation: gradient-shift 15s ease infinite;
+        }
+        
+        /* 脉冲光晕 */
         @keyframes pulse-glow {
-            0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
-            50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.8); }
+            0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.5); }
+            50% { box-shadow: 0 0 40px rgba(139, 92, 246, 0.8); }
         }
-        .glow-animation {
-            animation: pulse-glow 2s ease-in-out infinite;
-        }
+        
+        /* 滑入动画 */
         @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        /* 浮动动画 */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        /* 飞行粒子动画 - 抛物线轨迹 */
+        @keyframes fly-to-target {
+            0% {
+                transform: translate(0, 0) scale(1) rotate(0deg);
+                opacity: 1;
+            }
+            30% {
+                transform: translate(var(--tx-mid), var(--ty-mid)) scale(1.2) rotate(180deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--tx), var(--ty)) scale(0.3) rotate(360deg);
+                opacity: 0;
+            }
+        }
+        
+        .fly-particle {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1000;
+            font-size: 2.5rem;
+            animation: fly-to-target 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+            filter: drop-shadow(0 0 10px currentColor);
+        }
+        
+        /* 爆炸粒子 */
+        @keyframes explode {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--ex), var(--ey)) scale(0);
+                opacity: 0;
+            }
+        }
+        
+        .explode-particle {
+            position: fixed;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 999;
+            animation: explode 1s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+            box-shadow: 0 0 10px currentColor;
+        }
+        
+        /* 波纹效果 */
+        @keyframes ripple {
+            0% {
+                transform: scale(0);
+                opacity: 0.6;
+            }
+            100% {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+        
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 70%);
+            animation: ripple 0.8s cubic-bezier(0, 0, 0.2, 1);
+            pointer-events: none;
+        }
+        
+        /* 卡片悬停 */
+        .vote-card {
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .vote-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+            transform: rotate(45deg);
+            transition: all 0.6s;
+        }
+        
+        .vote-card:hover::before {
+            left: 100%;
+        }
+        
+        .vote-card:hover {
+            transform: translateY(-12px) scale(1.03);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* 排名变化动画 */
+        .rank-item {
+            transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        
+        /* 数字滚动 */
+        @keyframes count-up {
             from { transform: translateY(20px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
-        .slide-up {
-            animation: slideUp 0.3s ease-out;
+        
+        .count-up {
+            animation: count-up 0.5s ease-out;
+        }
+        
+        /* 进度条填充动画 */
+        .progress-bar {
+            transition: width 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        
+        /* 二维码显示动画 */
+        @keyframes qr-appear {
+            from {
+                transform: scale(0.8) rotateY(90deg);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1) rotateY(0deg);
+                opacity: 1;
+            }
+        }
+        
+        .qr-appear {
+            animation: qr-appear 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        /* 排名徽章 */
+        .rank-badge {
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            box-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+        }
+        
+        .rank-badge-silver {
+            background: linear-gradient(135deg, #e5e7eb 0%, #9ca3af 100%);
+            box-shadow: 0 0 20px rgba(156, 163, 175, 0.5);
+        }
+        
+        .rank-badge-bronze {
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+            box-shadow: 0 0 20px rgba(249, 115, 22, 0.5);
         }
     </style>
 </head>
-<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen">
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useRef, useMemo } = React;
 
-        // LLM 工具列表
+        // ⚠️ 重要：替换为你的 Firebase 配置
+        const firebaseConfig = {
+			apiKey: "AIzaSyCQ0FB8xpIUFl9MK_qmj--t-ZcjqYre0S8",
+			authDomain: "llm-study-59bad.firebaseapp.com",
+			projectId: "llm-study-59bad",
+			storageBucket: "llm-study-59bad.firebasestorage.app",
+			messagingSenderId: "709963669616",
+			appId: "1:709963669616:web:5feb2c183e0a3057df14b5"
+        };
+
+        const isFirebaseConfigured = !firebaseConfig.apiKey.includes('YOUR_');
+
         const LLM_TOOLS = [
             '豆包', 'Kimi', 'DeepSeek', '通义千问', '文心一言',
             'ChatGPT', 'Claude', 'Gemini',
@@ -42,29 +221,37 @@
         const VOTE_TYPES = {
             frequent: { 
                 label: '常用', 
-                color: 'bg-blue-500', 
-                textColor: 'text-blue-400', 
+                color: '#3b82f6',
+                bgColor: 'bg-blue-500',
+                hoverColor: 'hover:bg-blue-600',
+                textColor: 'text-blue-400',
+                lightColor: 'bg-blue-900/30',
                 icon: '⭐',
                 multiple: true,
             },
             good: { 
                 label: '最好用', 
-                color: 'bg-green-500', 
-                textColor: 'text-green-400', 
+                color: '#22c55e',
+                bgColor: 'bg-green-500',
+                hoverColor: 'hover:bg-green-600',
+                textColor: 'text-green-400',
+                lightColor: 'bg-green-900/30',
                 icon: '👍',
                 multiple: false,
             },
             bad: { 
                 label: '最不好用', 
-                color: 'bg-red-500', 
-                textColor: 'text-red-400', 
+                color: '#ef4444',
+                bgColor: 'bg-red-500',
+                hoverColor: 'hover:bg-red-600',
+                textColor: 'text-red-400',
+                lightColor: 'bg-red-900/30',
                 icon: '👎',
                 multiple: false,
             }
         };
 
         function LLMVotingApp() {
-            // 从URL参数判断模式
             const urlParams = new URLSearchParams(window.location.search);
             const urlMode = urlParams.get('mode');
             const initialMode = urlMode || 'display';
@@ -78,31 +265,43 @@
             });
             const [loading, setLoading] = useState(true);
             const [showQR, setShowQR] = useState(false);
+            const [firebaseInitialized, setFirebaseInitialized] = useState(false);
             const qrRef = useRef(null);
+            const dbRef = useRef(null);
+            const statsRefs = useRef({});
 
-            // 生成URL
             const baseUrl = window.location.origin + window.location.pathname;
             const voteUrl = baseUrl + '?mode=vote';
 
-            // 加载投票数据
+            // 初始化 Firebase
             useEffect(() => {
-                loadVotes();
-                
-                // 监听 storage 变化（跨标签页同步）
-                const handleStorageChange = (e) => {
-                    if (e.key === 'llm-votes') {
-                        loadVotes();
+                if (!isFirebaseConfigured) {
+                    setLoading(false);
+                    return;
+                }
+
+                try {
+                    if (!firebase.apps.length) {
+                        firebase.initializeApp(firebaseConfig);
                     }
-                };
-                window.addEventListener('storage', handleStorageChange);
-                
-                // 定时刷新
-                const interval = setInterval(loadVotes, 2000);
-                
-                return () => {
-                    window.removeEventListener('storage', handleStorageChange);
-                    clearInterval(interval);
-                };
+                    dbRef.current = firebase.database().ref('votes');
+                    setFirebaseInitialized(true);
+
+                    dbRef.current.on('value', (snapshot) => {
+                        const data = snapshot.val() || {};
+                        setVotes(data);
+                        setLoading(false);
+                    });
+
+                    return () => {
+                        if (dbRef.current) {
+                            dbRef.current.off();
+                        }
+                    };
+                } catch (error) {
+                    console.error('Firebase 初始化失败:', error);
+                    setLoading(false);
+                }
             }, []);
 
             // 生成二维码
@@ -119,37 +318,101 @@
                 }
             }, [showQR, voteUrl]);
 
-            function loadVotes() {
-                try {
-                    const stored = localStorage.getItem('llm-votes');
-                    if (stored) {
-                        setVotes(JSON.parse(stored));
-                    }
-                    setLoading(false);
-                } catch (error) {
-                    console.error('加载投票失败:', error);
-                    setLoading(false);
-                }
+            // 创建飞行粒子
+            function createFlyingParticle(sourceElement, targetElement, voteType) {
+                const sourceRect = sourceElement.getBoundingClientRect();
+                const targetRect = targetElement.getBoundingClientRect();
+                
+                const particle = document.createElement('div');
+                particle.className = 'fly-particle';
+                particle.textContent = VOTE_TYPES[voteType].icon;
+                particle.style.color = VOTE_TYPES[voteType].color;
+                particle.style.left = sourceRect.left + sourceRect.width / 2 - 20 + 'px';
+                particle.style.top = sourceRect.top + sourceRect.height / 2 - 20 + 'px';
+                
+                const tx = targetRect.left + targetRect.width / 2 - sourceRect.left - sourceRect.width / 2;
+                const ty = targetRect.top + targetRect.height / 2 - sourceRect.top - sourceRect.height / 2;
+                
+                // 中间点（抛物线效果）
+                const txMid = tx * 0.5;
+                const tyMid = ty * 0.5 - 100; // 向上的弧线
+                
+                particle.style.setProperty('--tx', tx + 'px');
+                particle.style.setProperty('--ty', ty + 'px');
+                particle.style.setProperty('--tx-mid', txMid + 'px');
+                particle.style.setProperty('--ty-mid', tyMid + 'px');
+                
+                document.body.appendChild(particle);
+                
+                setTimeout(() => {
+                    createExplosion(
+                        targetRect.left + targetRect.width / 2,
+                        targetRect.top + targetRect.height / 2,
+                        VOTE_TYPES[voteType].color
+                    );
+                    particle.remove();
+                }, 1200);
             }
 
-            function saveVotes(newVotes) {
-                try {
-                    localStorage.setItem('llm-votes', JSON.stringify(newVotes));
-                    setVotes(newVotes);
+            // 创建爆炸效果
+            function createExplosion(x, y, color) {
+                const particleCount = 16;
+                
+                for (let i = 0; i < particleCount; i++) {
+                    const particle = document.createElement('div');
+                    particle.className = 'explode-particle';
+                    particle.style.backgroundColor = color;
+                    particle.style.left = x + 'px';
+                    particle.style.top = y + 'px';
                     
-                    // 触发 storage 事件，通知其他标签页
-                    window.dispatchEvent(new Event('storage'));
-                } catch (error) {
-                    console.error('保存投票失败:', error);
-                    alert('投票保存失败，请检查浏览器设置（不要使用无痕模式）');
+                    const angle = (Math.PI * 2 * i) / particleCount;
+                    const velocity = 80 + Math.random() * 60;
+                    const ex = Math.cos(angle) * velocity;
+                    const ey = Math.sin(angle) * velocity;
+                    
+                    particle.style.setProperty('--ex', ex + 'px');
+                    particle.style.setProperty('--ey', ey + 'px');
+                    
+                    document.body.appendChild(particle);
+                    
+                    setTimeout(() => particle.remove(), 1000);
                 }
             }
 
-            function handleVote(tool, voteType) {
+            // 创建波纹
+            function createRipple(e) {
+                const button = e.currentTarget;
+                const rect = button.getBoundingClientRect();
+                const ripple = document.createElement('div');
+                ripple.className = 'ripple';
+                const size = Math.max(rect.width, rect.height) * 2;
+                ripple.style.width = ripple.style.height = size + 'px';
+                ripple.style.left = e.clientX - rect.left - size / 2 + 'px';
+                ripple.style.top = e.clientY - rect.top - size / 2 + 'px';
+                button.style.position = 'relative';
+                button.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 800);
+            }
+
+            async function saveVotes(newVotes) {
+                if (!firebaseInitialized) {
+                    alert('Firebase 未配置');
+                    return;
+                }
+                try {
+                    await dbRef.current.set(newVotes);
+                } catch (error) {
+                    console.error('保存失败:', error);
+                    alert('保存失败');
+                }
+            }
+
+            function handleVote(tool, voteType, event) {
                 const voteConfig = VOTE_TYPES[voteType];
                 
+                createRipple(event);
+                
                 if (voteConfig.multiple) {
-                    // 常用票 - 可多选
                     const currentVotes = [...myVotes.frequent];
                     const index = currentVotes.indexOf(tool);
                     
@@ -163,6 +426,12 @@
                         }
                         saveVotes(newVotes);
                     } else {
+                        // 飞行动画
+                        const targetRef = statsRefs.current[`${tool}-${voteType}`];
+                        if (targetRef) {
+                            createFlyingParticle(event.currentTarget, targetRef, voteType);
+                        }
+                        
                         currentVotes.push(tool);
                         setMyVotes({ ...myVotes, frequent: currentVotes });
                         
@@ -174,10 +443,15 @@
                         saveVotes(newVotes);
                     }
                 } else {
-                    // 单选票
                     if (myVotes[voteType]) {
                         alert(`你已经投过"${voteConfig.label}"票了！`);
                         return;
+                    }
+
+                    // 飞行动画
+                    const targetRef = statsRefs.current[`${tool}-${voteType}`];
+                    if (targetRef) {
+                        createFlyingParticle(event.currentTarget, targetRef, voteType);
                     }
 
                     const newVotes = { ...votes };
@@ -190,30 +464,11 @@
                 }
             }
 
-            function resetVotes() {
-                if (confirm('确定要重置所有投票吗？此操作不可恢复！')) {
-                    saveVotes({});
+            async function resetVotes() {
+                if (confirm('确定要重置所有投票吗？')) {
+                    await saveVotes({});
                     setMyVotes({ frequent: [], good: null, bad: null });
                 }
-            }
-
-            function downloadResults() {
-                const results = {
-                    timestamp: new Date().toISOString(),
-                    votes: votes,
-                    summary: LLM_TOOLS.map(tool => ({
-                        tool,
-                        ...getToolStats(tool)
-                    })).sort((a, b) => b.total - a.total)
-                };
-                
-                const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `llm-voting-results-${Date.now()}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
             }
 
             function getToolStats(tool) {
@@ -228,22 +483,41 @@
 
             function copyToClipboard(text) {
                 navigator.clipboard.writeText(text).then(() => {
-                    alert('已复制到剪贴板！');
+                    alert('已复制！');
                 }).catch(() => {
                     prompt('请手动复制：', text);
                 });
             }
 
-            const sortedTools = [...LLM_TOOLS].sort((a, b) => {
-                const statsA = getToolStats(a);
-                const statsB = getToolStats(b);
-                return statsB.total - statsA.total;
-            });
+            // 实时排序（使用 useMemo 优化性能）
+            const sortedTools = useMemo(() => {
+                return [...LLM_TOOLS].sort((a, b) => {
+                    const statsA = getToolStats(a);
+                    const statsB = getToolStats(b);
+                    // 先按总票数，再按常用票数
+                    if (statsB.total !== statsA.total) {
+                        return statsB.total - statsA.total;
+                    }
+                    return statsB.frequent - statsA.frequent;
+                });
+            }, [votes]);
 
             if (loading) {
                 return (
                     <div className="min-h-screen flex items-center justify-center">
-                        <div className="text-white text-2xl">加载中...</div>
+                        <div className="text-6xl animate-pulse">🤖</div>
+                    </div>
+                );
+            }
+
+            if (!isFirebaseConfigured) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center p-8">
+                        <div className="max-w-2xl bg-gradient-to-br from-red-900/50 to-red-800/50 border-2 border-red-500 rounded-3xl p-8 text-white backdrop-blur-lg">
+                            <h2 className="text-4xl font-bold mb-4">⚠️ Firebase 未配置</h2>
+                            <p className="mb-4">请按照"Firebase超详细配置.md"配置 Firebase。</p>
+                            <p className="text-sm text-red-200">修改第 178-186 行的 firebaseConfig</p>
+                        </div>
                     </div>
                 );
             }
@@ -252,122 +526,151 @@
                 <div className="min-h-screen p-4 md:p-8">
                     <div className="max-w-7xl mx-auto">
                         {/* Header */}
-                        <div className="text-center mb-8 slide-up">
-                            <h1 className="text-4xl md:text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 mb-4">
+                        <div className="text-center mb-8" style={{animation: 'slideUp 0.6s ease-out'}}>
+                            <h1 className="text-5xl md:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 mb-4" style={{animation: 'float 3s ease-in-out infinite'}}>
                                 🤖 LLM 使用调研
                             </h1>
-                            <p className="text-xl text-gray-300 mb-6">常用榜 · 红黑榜 实时投票</p>
+                            <p className="text-2xl text-gray-300 mb-6 font-light">常用榜 · 红黑榜 · 实时投票</p>
                             
-                            {/* 模式提示 */}
                             {mode === 'display' && (
-                                <div className="bg-blue-900/50 border border-blue-500 rounded-lg p-4 mb-4 text-blue-200 inline-block">
-                                    📊 <strong>大屏展示模式</strong> - 手机扫码后会自动进入投票模式
+                                <div className="bg-gradient-to-r from-blue-900/50 to-blue-800/50 border-2 border-blue-400 rounded-2xl p-4 mb-6 text-blue-200 inline-block backdrop-blur-lg" style={{animation: 'pulse-glow 2s ease-in-out infinite'}}>
+                                    📊 <strong>大屏展示模式</strong> - 实时排名 · 平滑动画
                                 </div>
                             )}
                             
                             {mode === 'vote' && (
-                                <div className="bg-green-900/50 border border-green-500 rounded-lg p-4 mb-4 text-green-200 inline-block">
-                                    🗳️ <strong>投票模式</strong> - 请在下方选择你的投票
+                                <div className="bg-gradient-to-r from-green-900/50 to-green-800/50 border-2 border-green-400 rounded-2xl p-4 mb-6 text-green-200 inline-block backdrop-blur-lg">
+                                    🗳️ <strong>投票模式</strong> - 点击投票看飞行动画
                                 </div>
                             )}
                             
-                            {/* 大屏模式控制按钮 */}
+                            {/* 控制按钮 */}
                             {mode === 'display' && (
                                 <div className="flex gap-4 justify-center mb-6 flex-wrap">
                                     <button
                                         onClick={() => setShowQR(!showQR)}
-                                        className="px-6 py-3 rounded-lg font-semibold bg-purple-600 text-white hover:bg-purple-700 transition-all"
+                                        className="px-8 py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg hover:shadow-purple-500/50 transition-all transform hover:scale-105 active:scale-95"
                                     >
                                         📱 {showQR ? '隐藏' : '显示'}二维码
                                     </button>
                                     <button
                                         onClick={() => copyToClipboard(voteUrl)}
-                                        className="px-6 py-3 rounded-lg font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-all"
+                                        className="px-8 py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg hover:shadow-blue-500/50 transition-all transform hover:scale-105 active:scale-95"
                                     >
-                                        📋 复制投票链接
-                                    </button>
-                                    <button
-                                        onClick={downloadResults}
-                                        className="px-6 py-3 rounded-lg font-semibold bg-green-600 text-white hover:bg-green-700 transition-all"
-                                    >
-                                        💾 导出结果
+                                        📋 复制链接
                                     </button>
                                     <button
                                         onClick={resetVotes}
-                                        className="px-6 py-3 rounded-lg font-semibold bg-red-600 text-white hover:bg-red-700 transition-all"
+                                        className="px-8 py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg hover:shadow-red-500/50 transition-all transform hover:scale-105 active:scale-95"
                                     >
                                         🔄 重置投票
                                     </button>
                                 </div>
                             )}
 
-                            {/* 投票模式返回按钮 */}
                             {mode === 'vote' && (
                                 <div className="mb-6">
                                     <button
                                         onClick={() => window.location.href = baseUrl}
-                                        className="px-6 py-3 rounded-lg font-semibold bg-gray-600 text-white hover:bg-gray-700 transition-all"
+                                        className="px-8 py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-gray-600 to-gray-700 text-white shadow-lg hover:shadow-gray-500/50 transition-all transform hover:scale-105 active:scale-95"
                                     >
-                                        📊 返回大屏展示
+                                        📊 返回大屏
                                     </button>
                                 </div>
                             )}
 
                             {/* 二维码 */}
                             {showQR && mode === 'display' && (
-                                <div className="inline-block bg-white p-6 rounded-2xl shadow-2xl slide-up mb-6">
+                                <div className="inline-block bg-white p-8 rounded-3xl shadow-2xl mb-6 qr-appear">
                                     <div ref={qrRef} className="mb-4"></div>
-                                    <p className="text-gray-800 font-semibold mb-2">扫码参与投票</p>
-                                    <p className="text-gray-600 text-xs break-all max-w-xs">{voteUrl}</p>
+                                    <p className="text-gray-800 font-bold text-lg">扫码参与投票</p>
+                                    <p className="text-gray-600 text-sm mt-2 break-all max-w-xs">{voteUrl}</p>
                                 </div>
                             )}
 
                             {/* 投票说明 */}
-                            <div className="bg-gray-800/50 backdrop-blur-sm rounded-lg p-4 inline-block">
-                                <p className="text-gray-300 text-sm">
-                                    <span className="text-blue-400 mx-2">⭐ 常用（可多选）</span>
-                                    <span className="text-green-400 mx-2">👍 最好用（1票）</span>
-                                    <span className="text-red-400 mx-2">👎 最不好用（1票）</span>
+                            <div className="bg-gradient-to-r from-gray-800/50 to-gray-700/50 backdrop-blur-lg rounded-2xl p-5 inline-block border border-gray-600">
+                                <p className="text-gray-200 text-base font-medium">
+                                    <span className="text-blue-400 mx-3">⭐ 常用（可多选）</span>
+                                    <span className="text-green-400 mx-3">👍 最好用（1票）</span>
+                                    <span className="text-red-400 mx-3">👎 最不好用（1票）</span>
                                 </p>
                             </div>
                         </div>
 
-                        {/* 展示模式 */}
+                        {/* 大屏展示模式 - 实时排名 */}
                         {mode === 'display' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div className="space-y-4">
                                 {sortedTools.map((tool, index) => {
                                     const stats = getToolStats(tool);
+                                    const maxVotes = Math.max(...sortedTools.map(t => getToolStats(t).total)) || 1;
+                                    
+                                    // 排名徽章
+                                    let badgeClass = '';
+                                    let badgeText = '';
+                                    if (index === 0 && stats.total > 0) {
+                                        badgeClass = 'rank-badge';
+                                        badgeText = '🥇';
+                                    } else if (index === 1 && stats.total > 0) {
+                                        badgeClass = 'rank-badge-silver';
+                                        badgeText = '🥈';
+                                    } else if (index === 2 && stats.total > 0) {
+                                        badgeClass = 'rank-badge-bronze';
+                                        badgeText = '🥉';
+                                    }
+                                    
                                     return (
                                         <div 
                                             key={tool}
-                                            className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700 hover:border-purple-500 transition-all slide-up"
-                                            style={{ animationDelay: `${index * 0.05}s` }}
+                                            className="rank-item bg-gradient-to-br from-gray-800/70 to-gray-900/70 backdrop-blur-lg rounded-3xl p-6 border border-gray-700 hover:border-purple-500 shadow-xl"
+                                            style={{
+                                                animation: `slideUp ${0.3 + index * 0.05}s ease-out`
+                                            }}
                                         >
                                             <div className="flex items-center justify-between mb-4">
-                                                <h3 className="text-2xl font-bold text-white">{tool}</h3>
+                                                <div className="flex items-center gap-4">
+                                                    {badgeClass && (
+                                                        <div className={`${badgeClass} text-white px-4 py-2 rounded-full font-bold text-xl`}>
+                                                            {badgeText}
+                                                        </div>
+                                                    )}
+                                                    <div className="text-3xl font-bold text-gray-400">
+                                                        #{index + 1}
+                                                    </div>
+                                                    <h3 className="text-4xl font-bold text-white">{tool}</h3>
+                                                </div>
                                                 {stats.total > 0 && (
-                                                    <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
+                                                    <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-full text-xl font-bold shadow-lg count-up">
                                                         {stats.total} 票
-                                                    </span>
+                                                    </div>
                                                 )}
                                             </div>
                                             
-                                            <div className="space-y-3">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                 {Object.entries(VOTE_TYPES).map(([type, config]) => {
                                                     const count = stats[type];
-                                                    const percentage = stats.total > 0 ? (count / stats.total * 100) : 0;
+                                                    const percentage = maxVotes > 0 ? (count / maxVotes * 100) : 0;
+                                                    
                                                     return (
-                                                        <div key={type}>
-                                                            <div className="flex items-center justify-between mb-1">
-                                                                <span className={`text-sm font-semibold ${config.textColor}`}>
-                                                                    {config.icon} {config.label}
+                                                        <div 
+                                                            key={type}
+                                                            ref={el => statsRefs.current[`${tool}-${type}`] = el}
+                                                            className={`${config.lightColor} rounded-2xl p-4 border border-gray-600`}
+                                                        >
+                                                            <div className="flex items-center justify-between mb-3">
+                                                                <span className={`text-lg font-bold ${config.textColor} flex items-center gap-2`}>
+                                                                    <span className="text-2xl">{config.icon}</span>
+                                                                    {config.label}
                                                                 </span>
-                                                                <span className="text-gray-400 text-sm">{count}</span>
+                                                                <span className="text-white text-2xl font-bold count-up">{count}</span>
                                                             </div>
-                                                            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                                                            <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
                                                                 <div 
-                                                                    className={`h-full ${config.color} transition-all duration-500`}
-                                                                    style={{ width: `${percentage}%` }}
+                                                                    className={`progress-bar h-full ${config.bgColor} rounded-full shadow-lg`}
+                                                                    style={{ 
+                                                                        width: `${percentage}%`,
+                                                                        boxShadow: `0 0 10px ${config.color}`
+                                                                    }}
                                                                 ></div>
                                                             </div>
                                                         </div>
@@ -384,48 +687,45 @@
                         {mode === 'vote' && (
                             <div>
                                 {/* 我的投票状态 */}
-                                <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 mb-8 border border-gray-700">
-                                    <h3 className="text-xl font-bold text-white mb-4">📝 我的投票</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="bg-gray-700/50 rounded-lg p-4">
-                                            <div className="text-blue-400 font-semibold mb-2">
-                                                ⭐ 常用（可多选）
-                                            </div>
-                                            <div className="text-white text-sm">
-                                                {myVotes.frequent.length > 0 
-                                                    ? myVotes.frequent.join('、') 
-                                                    : '未投票'}
-                                            </div>
-                                        </div>
-                                        <div className="bg-gray-700/50 rounded-lg p-4">
-                                            <div className="text-green-400 font-semibold mb-2">
-                                                👍 最好用
-                                            </div>
-                                            <div className="text-white text-lg">
-                                                {myVotes.good || '未投票'}
-                                            </div>
-                                        </div>
-                                        <div className="bg-gray-700/50 rounded-lg p-4">
-                                            <div className="text-red-400 font-semibold mb-2">
-                                                👎 最不好用
-                                            </div>
-                                            <div className="text-white text-lg">
-                                                {myVotes.bad || '未投票'}
-                                            </div>
-                                        </div>
+                                <div className="bg-gradient-to-br from-gray-800/70 to-gray-900/70 backdrop-blur-lg rounded-3xl p-8 mb-8 border-2 border-purple-500 shadow-2xl" style={{animation: 'slideUp 0.4s ease-out'}}>
+                                    <h3 className="text-3xl font-bold text-white mb-6 flex items-center gap-3">
+                                        <span className="text-4xl">📝</span>
+                                        我的投票
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        {Object.entries(VOTE_TYPES).map(([type, config]) => {
+                                            const voted = type === 'frequent' 
+                                                ? myVotes.frequent.length > 0
+                                                : myVotes[type] !== null;
+                                            
+                                            return (
+                                                <div key={type} className={`${config.lightColor} rounded-2xl p-6 border-2 ${voted ? 'border-white' : 'border-gray-600'} transition-all`}>
+                                                    <div className={`text-xl font-bold mb-3 ${config.textColor} flex items-center gap-2`}>
+                                                        <span className="text-3xl">{config.icon}</span>
+                                                        {config.label}
+                                                    </div>
+                                                    <div className="text-white text-lg font-medium">
+                                                        {type === 'frequent' 
+                                                            ? (myVotes.frequent.length > 0 ? myVotes.frequent.join('、') : '未投票')
+                                                            : (myVotes[type] || '未投票')
+                                                        }
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
-                                {/* 投票区域 */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* 投票卡片网格 */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {LLM_TOOLS.map((tool, index) => (
                                         <div 
                                             key={tool}
-                                            className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700 slide-up"
-                                            style={{ animationDelay: `${index * 0.03}s` }}
+                                            className="vote-card bg-gradient-to-br from-gray-800/70 to-gray-900/70 backdrop-blur-lg rounded-3xl p-6 border border-gray-700 shadow-xl"
+                                            style={{animation: `slideUp ${0.5 + index * 0.05}s ease-out`}}
                                         >
-                                            <h3 className="text-xl font-bold text-white mb-4">{tool}</h3>
-                                            <div className="flex gap-2 flex-wrap">
+                                            <h3 className="text-3xl font-bold text-white mb-6 text-center">{tool}</h3>
+                                            <div className="flex flex-col gap-3">
                                                 {Object.entries(VOTE_TYPES).map(([type, config]) => {
                                                     const isSelected = config.multiple 
                                                         ? myVotes.frequent.includes(tool)
@@ -435,17 +735,21 @@
                                                     return (
                                                         <button
                                                             key={type}
-                                                            onClick={() => handleVote(tool, type)}
+                                                            onClick={(e) => !isDisabled && handleVote(tool, type, e)}
                                                             disabled={isDisabled}
-                                                            className={`flex-1 min-w-[100px] px-4 py-3 rounded-lg font-semibold transition-all ${
-                                                                isSelected
-                                                                    ? `${config.color} text-white ring-2 ring-white`
+                                                            className={`
+                                                                px-6 py-4 rounded-xl font-bold text-lg transition-all transform
+                                                                ${isSelected
+                                                                    ? `${config.bgColor} text-white ring-4 ring-white shadow-2xl scale-105`
                                                                     : isDisabled
-                                                                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                                                    : `${config.color} hover:opacity-80 text-white`
-                                                            }`}
+                                                                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed opacity-50'
+                                                                    : `${config.bgColor} ${config.hoverColor} text-white shadow-lg hover:scale-105 hover:shadow-2xl active:scale-95`
+                                                                }
+                                                            `}
+                                                            style={isSelected ? {boxShadow: `0 0 30px ${config.color}`} : {}}
                                                         >
-                                                            {config.icon} {config.label}
+                                                            <span className="text-2xl mr-2">{config.icon}</span>
+                                                            {config.label}
                                                         </button>
                                                     );
                                                 })}
@@ -454,10 +758,12 @@
                                     ))}
                                 </div>
 
-                                {/* 投票完成提示 */}
-                                <div className="mt-8 text-center">
-                                    <div className="bg-green-900/30 border border-green-600 rounded-lg p-4 inline-block text-green-200">
-                                        ✅ 投票自动保存，投完即可关闭页面
+                                {/* 投票提示 */}
+                                <div className="mt-12 text-center">
+                                    <div className="bg-gradient-to-r from-green-900/50 to-green-800/50 border-2 border-green-400 rounded-2xl p-6 inline-block backdrop-blur-lg">
+                                        <p className="text-green-200 text-lg font-medium">
+                                            ✅ 投票自动保存 · 投完即可关闭 · 大屏幕实时更新
+                                        </p>
                                     </div>
                                 </div>
                             </div>
